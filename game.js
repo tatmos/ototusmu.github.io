@@ -25,6 +25,9 @@ class Game {
         this.scheduledTimeouts = []; // スケジュールされたタイマーを追跡
         this.isCompletingChapter = false; // 章クリア処理中かどうか
         this.scrollFollowInterval = null; // スクロール追従用のインターバル
+        this.isPreviewingCard = false; // カードプレビュー中かどうか
+        this.previewStateTimer = null; // プレビュー状態解除用タイマー
+        this.previewingCardId = null; // 現在プレビュー中のカードID
         
         this.init();
     }
@@ -325,18 +328,54 @@ class Game {
     // カードのプレビュー再生を設定
     setupCardPreview(card, element) {
         let previewTimeout = null;
-        let isPreviewing = false;
         
         element.addEventListener('mouseenter', () => {
-            if (card.isLocked || isPreviewing) return;
+            // ロック中または再生中なら何もしない
+            if (card.isLocked || this.isPlayingMusic) return;
+            
+            // 同じカードのプレビューが既に開始されている場合は何もしない
+            if (this.isPreviewingCard && this.previewingCardId === card.id) return;
+            
+            // 異なるカードのプレビューが開始されている場合は、前のプレビューを停止
+            if (this.isPreviewingCard && this.previewingCardId !== card.id) {
+                this.stopPreview();
+            }
             
             // 少し遅延してから再生（誤操作を防ぐ）
             previewTimeout = setTimeout(() => {
-                isPreviewing = true;
+                // 再生中になったら中止
+                if (this.isPlayingMusic) return;
+                
+                // 既に別のカードのプレビューが開始されていたら中止（同じカードの場合は継続）
+                if (this.isPreviewingCard && this.previewingCardId !== card.id) return;
+                
+                this.isPreviewingCard = true;
+                this.previewingCardId = card.id;
+                
+                // 既存のプレビュー状態解除タイマーをクリア
+                if (this.previewStateTimer) {
+                    clearTimeout(this.previewStateTimer);
+                    this.previewStateTimer = null;
+                }
+
+                let durationSec = 0;
                 if (card.type === 'pitch') {
-                    this.previewPitchCard(card);
+                    durationSec = this.previewPitchCard(card);
                 } else if (card.type === 'rhythm') {
-                    this.previewRhythmCard(card);
+                    durationSec = this.previewRhythmCard(card);
+                }
+
+                // プレビュー終了後に新しいプレビューを許可
+                if (durationSec > 0) {
+                    this.previewStateTimer = setTimeout(() => {
+                        this.isPreviewingCard = false;
+                        this.previewingCardId = null;
+                        this.previewStateTimer = null;
+                    }, durationSec * 1000 + 50);
+                } else {
+                    // 何も再生されなかった場合はすぐに解除
+                    this.isPreviewingCard = false;
+                    this.previewingCardId = null;
                 }
             }, 300); // 300ms後に再生
         });
@@ -345,10 +384,6 @@ class Game {
             if (previewTimeout) {
                 clearTimeout(previewTimeout);
                 previewTimeout = null;
-            }
-            if (isPreviewing) {
-                this.stopPreview();
-                isPreviewing = false;
             }
         });
     }
@@ -371,6 +406,9 @@ class Game {
             const startTime = now + index * eighthNoteDuration;
             this.audioManager.playNoteAbsolute(note, eighthNoteDuration, startTime, 0.2);
         });
+
+        // 全体のプレビュー長さ（秒）を返す
+        return card.data.length * eighthNoteDuration;
     }
 
     // リズムカードのプレビュー再生
@@ -382,28 +420,43 @@ class Game {
             this.audioManager.audioContext.resume();
         }
         
-        const tempo = parseInt(document.getElementById('bpm-input').value) || 300;
+        // リズムプレビューは早いテンポで再生（BPMの2倍）
+        const baseTempo = parseInt(document.getElementById('bpm-input').value) || 300;
+        const tempo = baseTempo * 2; // 2倍速
         const beatDuration = 60 / tempo;
         const eighthNoteDuration = beatDuration / 2;
         
-        // リズムカードはデフォルトでC4を再生
-        const defaultNote = 'C4';
         const now = this.audioManager.audioContext.currentTime;
         
         let timeOffset = 0;
+        let totalDuration = 0;
         card.data.forEach((duration) => {
             const noteDuration = duration * eighthNoteDuration;
             const startTime = now + timeOffset;
-            this.audioManager.playNoteAbsolute(defaultNote, noteDuration, startTime, 0.2);
+            // ノイズ音で再生
+            this.audioManager.playNoiseAbsolute(noteDuration, startTime, 0.2);
             timeOffset += noteDuration;
+            totalDuration += noteDuration;
         });
+
+        // 全体のプレビュー長さ（秒）を返す
+        return totalDuration;
     }
 
     // プレビュー再生を停止
     stopPreview() {
-        // プレビュー用のオシレーターは自動的に停止するため、特別な処理は不要
-        // 必要に応じて、すべての音を停止することも可能
-        // this.audioManager.stopAll();
+        // プレビュー中の音を停止
+        this.audioManager.stopAll();
+        
+        // プレビュー状態をリセット
+        this.isPreviewingCard = false;
+        this.previewingCardId = null;
+        
+        // プレビュー状態解除タイマーをクリア
+        if (this.previewStateTimer) {
+            clearTimeout(this.previewStateTimer);
+            this.previewStateTimer = null;
+        }
     }
 
     generateCards() {

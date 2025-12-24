@@ -176,6 +176,48 @@ class AudioManager {
         this.gainNodes.clear();
     }
 
+    // ノイズ音を再生（絶対時刻）- リズムプレビュー用
+    playNoiseAbsolute(duration, absoluteTime, volume = 0.3) {
+        if (!this.audioContext) return;
+
+        const time = absoluteTime;
+
+        // ホワイトノイズを生成するためのバッファを作成
+        const bufferSize = this.audioContext.sampleRate * duration;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const output = buffer.getChannelData(0);
+        
+        // ホワイトノイズを生成
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1; // -1から1の範囲のランダム値
+        }
+
+        const source = this.audioContext.createBufferSource();
+        const gainNode = this.audioContext.createGain();
+
+        source.buffer = buffer;
+        source.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        gainNode.gain.setValueAtTime(0, time);
+        gainNode.gain.linearRampToValueAtTime(volume, time + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, time + duration - 0.01);
+
+        source.start(time);
+        source.stop(time + duration);
+
+        // 停止時に参照できるように保存
+        this.oscillators.set(source, gainNode);
+        this.gainNodes.set(gainNode, source);
+        
+        source.onended = () => {
+            this.oscillators.delete(source);
+            this.gainNodes.delete(gainNode);
+        };
+
+        return { source, gainNode };
+    }
+
     // すべての音を停止
     stopAll() {
         // 再生フラグを停止
@@ -196,7 +238,9 @@ class AudioManager {
                 gainNode.gain.cancelScheduledValues(currentTime);
                 gainNode.gain.setValueAtTime(0, currentTime);
                 // オシレーターを停止
-                oscillator.stop(currentTime);
+                if (oscillator.stop) {
+                    oscillator.stop(currentTime);
+                }
             } catch (e) {
                 // 既に停止している場合は無視
             }
