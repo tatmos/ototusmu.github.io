@@ -15,7 +15,9 @@ class Game {
         this.lockedCards = [];
         
         this.draggedCard = null;
+        this.draggedCardData = null;
         this.dragOffset = { x: 0, y: 0 };
+        this.isDraggingFromCanvas = false;
         this.isPlayingMusic = false;
         
         this.init();
@@ -88,7 +90,38 @@ class Game {
         // ドラッグ開始（マウスとタッチの両方に対応）
         const startDrag = (e) => {
             const cardElement = e.target.closest('.card');
-            if (!cardElement) return;
+            if (!cardElement) {
+                // キャンバス上でクリックされた場合、配置されたカードを検出
+                const canvasRect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                if (clientX >= canvasRect.left && clientX <= canvasRect.right &&
+                    clientY >= canvasRect.top && clientY <= canvasRect.bottom) {
+                    const cardData = this.staff.findCardAtCanvasPosition(clientX, clientY);
+                    if (cardData) {
+                        // 配置されたカードをドラッグ開始
+                        let card = null;
+                        if (cardData.combined) {
+                            // 組み合わせカードの場合、リズムカードを基準にする
+                            card = cardData.rhythmCard || cardData.pitchCard;
+                        } else {
+                            card = cardData.card;
+                        }
+                        
+                        if (card && !card.isLocked) {
+                            this.draggedCard = card;
+                            this.draggedCardData = cardData;
+                            this.dragOffset.x = clientX - canvasRect.left;
+                            this.dragOffset.y = clientY - canvasRect.top;
+                            this.isDraggingFromCanvas = true;
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+                }
+                return;
+            }
 
             const cardId = parseInt(cardElement.dataset.cardId);
             const card = this.findCardById(cardId);
@@ -98,6 +131,8 @@ class Game {
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
             this.draggedCard = card;
+            this.draggedCardData = null;
+            this.isDraggingFromCanvas = false;
             const rect = cardElement.getBoundingClientRect();
             this.dragOffset.x = clientX - rect.left;
             this.dragOffset.y = clientY - rect.top;
@@ -113,12 +148,30 @@ class Game {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-            const cardElement = this.draggedCard.element;
-            if (cardElement) {
-                cardElement.style.position = 'fixed';
-                cardElement.style.left = (clientX - this.dragOffset.x) + 'px';
-                cardElement.style.top = (clientY - this.dragOffset.y) + 'px';
-                cardElement.style.zIndex = '1000';
+            if (this.isDraggingFromCanvas) {
+                // キャンバス上でドラッグ中は、一時的に枠を表示
+                const canvasRect = canvas.getBoundingClientRect();
+                const x = clientX - canvasRect.left;
+                const y = clientY - canvasRect.top;
+                
+                // 8分音符単位でスナップ
+                const eighthNote = this.staff.getEighthNoteFromPosition(clientX, clientY);
+                const snappedX = this.staff.leftMargin + eighthNote * this.staff.eighthNoteWidth;
+                
+                // 一時的な位置を保存（描画用）
+                if (this.draggedCardData) {
+                    this.draggedCardData.tempPosition = { eighthNote: eighthNote };
+                }
+                this.staff.draw(); // 再描画
+            } else {
+                // カードコンテナからドラッグ中
+                const cardElement = this.draggedCard.element;
+                if (cardElement) {
+                    cardElement.style.position = 'fixed';
+                    cardElement.style.left = (clientX - this.dragOffset.x) + 'px';
+                    cardElement.style.top = (clientY - this.dragOffset.y) + 'px';
+                    cardElement.style.zIndex = '1000';
+                }
             }
         };
 
@@ -135,9 +188,22 @@ class Game {
             const y = clientY - rect.top;
 
             // キャンバス内にドロップされたかチェック
-            if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
+            const isInCanvas = x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height;
+            
+            if (isInCanvas) {
+                // 8分音符単位でスナップ
                 const eighthNote = this.staff.getEighthNoteFromPosition(clientX, clientY);
-                this.placeCardOnStaff(this.draggedCard, eighthNote);
+                
+                if (this.isDraggingFromCanvas && this.draggedCardData) {
+                    // 配置されたカードを移動
+                    this.moveCardOnStaff(this.draggedCardData, eighthNote);
+                } else {
+                    // 新しいカードを配置
+                    this.placeCardOnStaff(this.draggedCard, eighthNote);
+                }
+            } else if (this.isDraggingFromCanvas && this.draggedCardData) {
+                // ピアノロールの範囲外にドロップされた場合、カードを元の位置に戻す
+                this.returnCardToContainer(this.draggedCardData);
             }
 
             // ドラッグ状態をリセット
@@ -150,7 +216,13 @@ class Game {
                 cardElement.style.zIndex = '';
             }
 
+            if (this.draggedCardData) {
+                delete this.draggedCardData.tempPosition;
+            }
+
             this.draggedCard = null;
+            this.draggedCardData = null;
+            this.isDraggingFromCanvas = false;
             e.preventDefault();
         };
 
@@ -159,6 +231,10 @@ class Game {
             container.addEventListener('mousedown', startDrag);
             container.addEventListener('touchstart', startDrag, { passive: false });
         });
+
+        // キャンバス上でもドラッグ可能にする
+        canvas.addEventListener('mousedown', startDrag);
+        canvas.addEventListener('touchstart', startDrag, { passive: false });
 
         document.addEventListener('mousemove', drag);
         document.addEventListener('touchmove', drag, { passive: false });
@@ -235,6 +311,114 @@ class Game {
         
         // 待機状態のカードをチェック
         this.staff.checkWaitingCards();
+    }
+
+    moveCardOnStaff(cardData, eighthNotePosition) {
+        // 既存のカードを削除
+        const index = this.staff.cards.indexOf(cardData);
+        if (index === -1) return;
+        
+        this.staff.cards.splice(index, 1);
+        
+        // 新しい位置に配置
+        if (cardData.combined) {
+            const combinedData = {
+                combined: true,
+                rhythmCard: cardData.rhythmCard,
+                pitchCard: cardData.pitchCard,
+                position: {
+                    eighthNote: eighthNotePosition
+                }
+            };
+            this.staff.cards.push(combinedData);
+            if (cardData.rhythmCard) cardData.rhythmCard.position = combinedData.position;
+            if (cardData.pitchCard) cardData.pitchCard.position = combinedData.position;
+        } else if (cardData.card) {
+            const newCardData = {
+                card: cardData.card,
+                position: {
+                    eighthNote: eighthNotePosition
+                }
+            };
+            this.staff.cards.push(newCardData);
+            cardData.card.position = newCardData.position;
+        }
+        
+        this.staff.draw();
+        
+        // 連鎖チェック
+        this.checkChain();
+        
+        // 小節の完了をチェック
+        this.checkMeasures();
+        
+        // 待機状態のカードをチェック
+        this.staff.checkWaitingCards();
+    }
+
+    returnCardToContainer(cardData) {
+        // ロックされているカードは戻さない
+        if (cardData.combined) {
+            if ((cardData.rhythmCard && cardData.rhythmCard.isLocked) ||
+                (cardData.pitchCard && cardData.pitchCard.isLocked)) {
+                return;
+            }
+        } else if (cardData.card && cardData.card.isLocked) {
+            return;
+        }
+        
+        // ピアノロールからカードを削除
+        const index = this.staff.cards.indexOf(cardData);
+        if (index !== -1) {
+            this.staff.cards.splice(index, 1);
+        }
+        
+        // カードの状態をリセット
+        if (cardData.combined) {
+            // 組み合わせカードの場合、両方のカードをリセット
+            if (cardData.rhythmCard) {
+                cardData.rhythmCard.reset();
+                // カード要素がDOMに存在しない場合は再追加
+                if (cardData.rhythmCard.element && !cardData.rhythmCard.element.parentNode) {
+                    const container = document.getElementById('rhythm-cards-container');
+                    container.appendChild(cardData.rhythmCard.element);
+                } else if (!cardData.rhythmCard.element) {
+                    const container = document.getElementById('rhythm-cards-container');
+                    container.appendChild(cardData.rhythmCard.createElement());
+                }
+            }
+            if (cardData.pitchCard) {
+                cardData.pitchCard.reset();
+                // カード要素がDOMに存在しない場合は再追加
+                if (cardData.pitchCard.element && !cardData.pitchCard.element.parentNode) {
+                    const container = document.getElementById('pitch-cards-container');
+                    container.appendChild(cardData.pitchCard.element);
+                } else if (!cardData.pitchCard.element) {
+                    const container = document.getElementById('pitch-cards-container');
+                    container.appendChild(cardData.pitchCard.createElement());
+                }
+            }
+        } else if (cardData.card) {
+            cardData.card.reset();
+            // カード要素がDOMに存在しない場合は再追加
+            if (cardData.card.element && !cardData.card.element.parentNode) {
+                const container = cardData.card.type === 'rhythm' 
+                    ? document.getElementById('rhythm-cards-container')
+                    : document.getElementById('pitch-cards-container');
+                container.appendChild(cardData.card.element);
+            } else if (!cardData.card.element) {
+                const container = cardData.card.type === 'rhythm' 
+                    ? document.getElementById('rhythm-cards-container')
+                    : document.getElementById('pitch-cards-container');
+                container.appendChild(cardData.card.createElement());
+            }
+        }
+        
+        // ピアノロールを再描画
+        this.staff.draw();
+        
+        // 小節の完了を再チェック（カードが削除されたため）
+        this.checkMeasures();
     }
 
     checkChain() {

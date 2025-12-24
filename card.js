@@ -13,20 +13,52 @@ class Card {
     // カードのDOM要素を作成
     createElement() {
         const card = document.createElement('div');
-        card.className = `card ${this.type}-card`;
+        card.className = `card ${this.type}-card gift-package`;
         card.dataset.cardId = this.id;
         card.draggable = true;
 
-        const content = document.createElement('div');
-        content.className = 'card-content';
+        // リボン（上）
+        const ribbonTop = document.createElement('div');
+        ribbonTop.className = 'gift-ribbon-top';
+        card.appendChild(ribbonTop);
+
+        // 包装紙の本体
+        const wrapper = document.createElement('div');
+        wrapper.className = 'gift-wrapper';
+        
+        // ブロックコンテナ
+        const blocksContainer = document.createElement('div');
+        blocksContainer.className = 'gift-blocks';
         
         if (this.type === 'rhythm') {
-            content.textContent = this.data.join('');
+            // リズムカード：ブロックを表示
+            this.data.forEach((duration, index) => {
+                const block = document.createElement('div');
+                block.className = 'rhythm-block';
+                block.style.width = `${duration * 8}px`; // 8分音符=8px, 4分音符=16px
+                block.style.height = '20px';
+                blocksContainer.appendChild(block);
+            });
         } else {
-            content.textContent = this.data.join(' ');
+            // 音程カード：ブロックを表示
+            this.data.forEach((note, index) => {
+                const block = document.createElement('div');
+                block.className = 'pitch-block';
+                block.textContent = note;
+                block.style.width = '20px';
+                block.style.height = '20px';
+                blocksContainer.appendChild(block);
+            });
         }
+        
+        wrapper.appendChild(blocksContainer);
+        card.appendChild(wrapper);
 
-        card.appendChild(content);
+        // リボン（下）
+        const ribbonBottom = document.createElement('div');
+        ribbonBottom.className = 'gift-ribbon-bottom';
+        card.appendChild(ribbonBottom);
+
         this.element = card;
         return card;
     }
@@ -36,7 +68,8 @@ class Card {
         if (this.type === 'rhythm') {
             return this.data.reduce((sum, val) => sum + val, 0);
         }
-        return this.data.length * 2; // 音程カードはデフォルトで2（8分音符）ずつ
+        // 音程カードのみの場合は1ブロック（8分音符）ずつ
+        return this.data.length;
     }
 
     // カードを確定状態にする

@@ -1,4 +1,4 @@
-// 五線紙クラス
+// 五線紙クラス（ピアノロール形式）
 class Staff {
     constructor(canvas, timeSignature = { numerator: 4, denominator: 4 }) {
         this.canvas = canvas;
@@ -11,21 +11,89 @@ class Staff {
         this.cards = []; // 配置されたカード
         this.maxMeasures = 16;
         this.eighthNoteWidth = 30; // 8分音符1つの幅（ピクセル）
-        this.staffHeight = 200;
-        this.staffLineSpacing = 20;
-        this.staffTop = 50;
+        this.blockHeight = 25; // ブロックの高さ（ピクセル）
+        this.leftMargin = 100; // 左マージン（音程ラベル用）
+        this.topMargin = 30; // 上マージン
+        
+        // 音程の範囲（C3からC5まで）
+        this.notes = this.generateNoteRange('C3', 'C5');
+        
+        // 音程ごとの色マッピング
+        this.noteColors = this.generateNoteColors();
         
         this.setupCanvas();
         this.draw();
     }
 
-    setupCanvas() {
-        const totalWidth = this.maxMeasures * this.eighthNotesPerMeasure * this.eighthNoteWidth + 200;
-        this.canvas.width = totalWidth;
-        this.canvas.height = this.staffHeight + 100;
+    // 音程範囲を生成
+    generateNoteRange(startNote, endNote) {
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const range = [];
+        
+        const parseNote = (noteStr) => {
+            const match = noteStr.match(/([A-G]#?)(\d)/);
+            if (!match) return null;
+            const noteName = match[1];
+            const octave = parseInt(match[2]);
+            const noteIndex = notes.indexOf(noteName);
+            return { noteIndex, octave, fullName: noteStr };
+        };
+        
+        const start = parseNote(startNote);
+        const end = parseNote(endNote);
+        if (!start || !end) return [];
+        
+        let currentOctave = start.octave;
+        let currentNoteIndex = start.noteIndex;
+        const endOctave = end.octave;
+        const endNoteIndex = end.noteIndex;
+        
+        while (currentOctave < endOctave || (currentOctave === endOctave && currentNoteIndex <= endNoteIndex)) {
+            range.push(notes[currentNoteIndex] + currentOctave);
+            currentNoteIndex++;
+            if (currentNoteIndex >= notes.length) {
+                currentNoteIndex = 0;
+                currentOctave++;
+            }
+        }
+        
+        return range.reverse(); // 高い音から低い音へ（上から下へ）
     }
 
-    // 五線紙を描画
+    // 音程ごとの色を生成
+    generateNoteColors() {
+        const colors = {};
+        const baseColors = {
+            'C': '#FF6B6B',   // 赤
+            'C#': '#FF8E6B',  // オレンジ
+            'D': '#FFB84D',   // 黄オレンジ
+            'D#': '#FFD93D',  // 黄色
+            'E': '#C8E6C9',   // ライトグリーン
+            'F': '#81C784',   // グリーン
+            'F#': '#4FC3F7',  // ライトブルー
+            'G': '#42A5F5',   // ブルー
+            'G#': '#7986CB',  // インディゴ
+            'A': '#BA68C8',   // パープル
+            'A#': '#E91E63',  // ピンク
+            'B': '#F06292'    // ローズ
+        };
+        
+        this.notes.forEach(note => {
+            const noteName = note.replace(/\d+/, '');
+            colors[note] = baseColors[noteName] || '#CCCCCC';
+        });
+        
+        return colors;
+    }
+
+    setupCanvas() {
+        const totalWidth = this.maxMeasures * this.eighthNotesPerMeasure * this.eighthNoteWidth + this.leftMargin + 50;
+        const totalHeight = this.notes.length * this.blockHeight + this.topMargin + 50;
+        this.canvas.width = totalWidth;
+        this.canvas.height = totalHeight;
+    }
+
+    // ピアノロールを描画
     draw() {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -37,11 +105,11 @@ class Staff {
         // 拍子記号を描画
         this.drawTimeSignature();
 
+        // 音程ラベルとグリッド線を描画
+        this.drawPianoRollGrid();
+
         // 小節線を描画
         this.drawMeasureLines();
-
-        // 五線を描画
-        this.drawStaffLines();
 
         // 配置されたカードを描画
         this.drawCards();
@@ -51,90 +119,145 @@ class Staff {
     drawTimeSignature() {
         const ctx = this.ctx;
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 24px Arial';
+        ctx.font = 'bold 20px Arial';
         ctx.fillText(
             `${this.timeSignature.numerator}/${this.timeSignature.denominator}`,
-            20,
-            this.staffTop + 40
+            10,
+            20
         );
+    }
+
+    // ピアノロールのグリッドと音程ラベルを描画
+    drawPianoRollGrid() {
+        const ctx = this.ctx;
+        
+        // 各音程の行を描画
+        this.notes.forEach((note, index) => {
+            const y = this.topMargin + index * this.blockHeight;
+            
+            // 行の背景（交互に色を変える）
+            ctx.fillStyle = index % 2 === 0 ? '#f8f9fa' : '#ffffff';
+            ctx.fillRect(this.leftMargin, y, this.canvas.width - this.leftMargin, this.blockHeight);
+            
+            // 音程ラベル
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'right';
+            ctx.fillText(note, this.leftMargin - 10, y + this.blockHeight / 2 + 4);
+            
+            // 横線
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(this.leftMargin, y + this.blockHeight);
+            ctx.lineTo(this.canvas.width - 50, y + this.blockHeight);
+            ctx.stroke();
+        });
     }
 
     // 小節線を描画
     drawMeasureLines() {
         const ctx = this.ctx;
-        ctx.strokeStyle = '#000';
+        ctx.strokeStyle = '#999';
         ctx.lineWidth = 2;
 
         for (let measure = 0; measure <= this.maxMeasures; measure++) {
-            const x = 100 + measure * this.eighthNotesPerMeasure * this.eighthNoteWidth;
+            const x = this.leftMargin + measure * this.eighthNotesPerMeasure * this.eighthNoteWidth;
             ctx.beginPath();
-            ctx.moveTo(x, this.staffTop - 10);
-            ctx.lineTo(x, this.staffTop + this.staffLineSpacing * 4 + 10);
+            ctx.moveTo(x, this.topMargin);
+            ctx.lineTo(x, this.topMargin + this.notes.length * this.blockHeight);
             ctx.stroke();
         }
     }
 
-    // 五線を描画
-    drawStaffLines() {
-        const ctx = this.ctx;
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-
-        for (let i = 0; i < 5; i++) {
-            const y = this.staffTop + i * this.staffLineSpacing;
-            ctx.beginPath();
-            ctx.moveTo(100, y);
-            ctx.lineTo(this.canvas.width - 50, y);
-            ctx.stroke();
-        }
+    // 音程名からY座標を取得
+    getNoteY(note) {
+        const index = this.notes.indexOf(note);
+        if (index === -1) return null;
+        return this.topMargin + index * this.blockHeight;
     }
 
-    // ノートを描画
-    drawNote(x, y, note, duration) {
+    // ブロックを描画（リズムのみ：グレースケール）
+    drawRhythmBlock(x, duration, brightness = 0.5) {
         const ctx = this.ctx;
+        const width = duration * this.eighthNoteWidth;
+        const y = this.topMargin;
+        const height = this.notes.length * this.blockHeight;
         
-        // ノートの位置を計算（C4を中央の線に配置）
-        const notePositions = {
-            'C4': 2, 'D4': 1.5, 'E4': 1, 'F4': 0.5, 'G4': 0,
-            'A4': -0.5, 'B4': -1, 'C5': -1.5,
-            'C3': 3, 'D3': 2.5, 'E3': 2, 'F3': 1.5, 'G3': 1,
-            'A3': 0.5, 'B3': 0
-        };
+        // グレースケールで描画（明暗で表現）
+        const grayValue = Math.floor(255 * brightness);
+        ctx.fillStyle = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+        ctx.fillRect(x, y, width, height);
+        
+        // 境界線
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+    }
 
-        const baseY = this.staffTop + this.staffLineSpacing * 2; // C4の位置
-        const noteOffset = (notePositions[note] || 0) * this.staffLineSpacing;
-        const noteY = baseY - noteOffset;
+    // ブロックを描画（音程のみ：色つき、1ブロックに音名）
+    drawPitchBlock(x, note) {
+        const ctx = this.ctx;
+        const noteY = this.getNoteY(note);
+        if (noteY === null) return;
+        
+        const width = this.eighthNoteWidth; // 1ブロック（8分音符）
+        const height = this.blockHeight;
+        
+        // 色つきブロック
+        ctx.fillStyle = this.noteColors[note] || '#CCCCCC';
+        ctx.fillRect(x, noteY, width, height);
+        
+        // 境界線
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, noteY, width, height);
+        
+        // 音名を表示
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(note, x + width / 2, noteY + height / 2 + 3);
+    }
 
-        // 音符の頭を描画
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.ellipse(x, noteY, 8, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 音符の長さに応じて旗を描画
-        if (duration <= 4) { // 8分音符以下
-            ctx.beginPath();
-            ctx.moveTo(x + 8, noteY);
-            ctx.lineTo(x + 8, noteY - 30);
-            ctx.stroke();
-            
-            if (duration <= 2) { // 16分音符
-                ctx.beginPath();
-                ctx.moveTo(x + 8, noteY - 20);
-                ctx.lineTo(x + 12, noteY - 15);
-                ctx.stroke();
-            }
+    // ブロックを描画（リズム+音程融合：リズムブロックに色と音名）
+    drawCombinedBlock(x, note, duration) {
+        const ctx = this.ctx;
+        const noteY = this.getNoteY(note);
+        if (noteY === null) return;
+        
+        const width = duration * this.eighthNoteWidth;
+        const height = this.blockHeight;
+        
+        // 色つきブロック
+        ctx.fillStyle = this.noteColors[note] || '#CCCCCC';
+        ctx.fillRect(x, noteY, width, height);
+        
+        // 境界線
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, noteY, width, height);
+        
+        // 音名を表示（ブロックが十分広い場合）
+        if (width >= this.eighthNoteWidth) {
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(note, x + width / 2, noteY + height / 2 + 3);
         }
     }
 
     // 配置されたカードを描画
     drawCards() {
         this.cards.forEach(cardData => {
-            if (!cardData.card || !cardData.position) return;
+            // 一時的な位置（ドラッグ中）がある場合はそれを使用
+            const position = cardData.tempPosition || cardData.position;
+            if (!position) return;
 
-            const startEighth = cardData.position.eighthNote;
-            const x = 100 + startEighth * this.eighthNoteWidth;
+            const startEighth = position.eighthNote;
+            const x = this.leftMargin + startEighth * this.eighthNoteWidth;
 
+            // まずブロックを描画
             // 組み合わせられたカード（リズム+音程）を描画
             if (cardData.combined) {
                 const rhythmCard = cardData.rhythmCard;
@@ -148,41 +271,110 @@ class Staff {
                         if (pitchIndex < pitchCard.data.length) {
                             const note = pitchCard.data[pitchIndex];
                             const duration = rhythmDuration;
-                            const noteX = currentX;
                             
-                            this.drawNote(noteX, 0, note, duration);
+                            // リズム+音程融合：色つきブロックに音名
+                            this.drawCombinedBlock(currentX, note, duration);
                             
                             currentX += duration * this.eighthNoteWidth;
                             pitchIndex++;
-                        } else if (pitchIndex < pitchCard.data.length) {
+                        } else if (pitchIndex > 0) {
                             // リズムが足りない場合は最後の音を延長
                             const note = pitchCard.data[pitchIndex - 1];
                             const duration = rhythmDuration;
-                            this.drawNote(currentX, 0, note, duration);
+                            this.drawCombinedBlock(currentX, note, duration);
                             currentX += duration * this.eighthNoteWidth;
                         }
                     });
+                    
+                    // 贈り物パッケージの枠を描画
+                    const totalLength = rhythmCard.getLength();
+                    const isDragging = !!cardData.tempPosition;
+                    this.drawGiftPackageFrame(x, totalLength, 'combined', isDragging);
                 }
-            } else if (cardData.card && cardData.card.type === 'pitch' && cardData.card.data) {
-                // 単独の音程カード（デフォルトのリズムで）
-                cardData.card.data.forEach((note, index) => {
-                    const noteX = x + index * this.eighthNoteWidth * 2;
-                    this.drawNote(noteX, 0, note, 2);
-                });
-            } else if (cardData.card && cardData.card.type === 'rhythm') {
-                // 単独のリズムカード（視覚的な表示のみ）
-                const ctx = this.ctx;
-                ctx.fillStyle = 'rgba(255, 107, 107, 0.3)';
-                const width = cardData.card.getLength() * this.eighthNoteWidth;
-                ctx.fillRect(x, this.staffTop - 10, width, this.staffLineSpacing * 4 + 20);
+            } else if (cardData.card) {
+                if (cardData.card.type === 'pitch' && cardData.card.data) {
+                    // 単独の音程カード：色つきブロックに音名（1ブロックずつ）
+                    cardData.card.data.forEach((note, index) => {
+                        const noteX = x + index * this.eighthNoteWidth;
+                        this.drawPitchBlock(noteX, note);
+                    });
+                    // 贈り物パッケージの枠を描画
+                    const totalLength = cardData.card.getLength();
+                    const isDragging = !!cardData.tempPosition;
+                    this.drawGiftPackageFrame(x, totalLength, 'pitch', isDragging);
+                } else if (cardData.card.type === 'rhythm' && cardData.card.data) {
+                    // 単独のリズムカード：グレースケールの明暗で表現
+                    let currentX = x;
+                    cardData.card.data.forEach((duration, index) => {
+                        // リズムの長さに応じて明暗を変える（長いほど明るく）
+                        // 8分音符=0.4, 4分音符=0.6, 2分音符=0.8, 1分音符=0.9
+                        const brightness = duration === 8 ? 0.4 : duration === 4 ? 0.6 : duration === 2 ? 0.8 : duration === 1 ? 0.9 : 0.5;
+                        this.drawRhythmBlock(currentX, duration, brightness);
+                        currentX += duration * this.eighthNoteWidth;
+                    });
+                    // 贈り物パッケージの枠を描画
+                    const totalLength = cardData.card.getLength();
+                    const isDragging = !!cardData.tempPosition;
+                    this.drawGiftPackageFrame(x, totalLength, 'rhythm', isDragging);
+                }
             }
         });
+    }
+
+    // 贈り物パッケージの枠を描画
+    drawGiftPackageFrame(x, length, type, isDragging = false) {
+        const ctx = this.ctx;
+        const width = length * this.eighthNoteWidth;
+        const y = this.topMargin;
+        const height = this.notes.length * this.blockHeight;
+        
+        // 枠の色を決定
+        let borderColor, bgColor;
+        if (type === 'rhythm') {
+            borderColor = '#ff9999';
+            bgColor = 'rgba(255, 204, 204, 0.1)';
+        } else if (type === 'pitch') {
+            borderColor = '#99ccff';
+            bgColor = 'rgba(204, 238, 255, 0.1)';
+        } else { // combined
+            borderColor = '#cc99ff';
+            bgColor = 'rgba(238, 204, 255, 0.1)';
+        }
+        
+        // ドラッグ中は半透明にする
+        const alpha = isDragging ? 0.5 : 1.0;
+        ctx.globalAlpha = alpha;
+        
+        // 背景（薄く）
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(x, y, width, height);
+        
+        // 枠線
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 3;
+        ctx.setLineDash(isDragging ? [5, 5] : []);
+        ctx.strokeRect(x, y, width, height);
+        
+        // リボン（上）
+        const ribbonWidth = 30;
+        const ribbonX = x + width / 2 - ribbonWidth / 2;
+        ctx.fillStyle = type === 'rhythm' ? '#ff6b6b' : type === 'pitch' ? '#4ecdc4' : '#cc99ff';
+        ctx.fillRect(ribbonX, y, ribbonWidth, 8);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ribbonX, y, ribbonWidth, 8);
+        
+        // リボン（下）
+        ctx.fillRect(ribbonX, y + height - 8, ribbonWidth, 8);
+        ctx.strokeRect(ribbonX, y + height - 8, ribbonWidth, 8);
+        
+        ctx.globalAlpha = 1.0;
     }
 
     // マウス/タッチ位置から8分音符の位置を取得
     getEighthNoteFromPosition(clientX, clientY) {
         const canvasRect = this.canvas.getBoundingClientRect();
-        const relativeX = clientX - canvasRect.left - 100;
+        const relativeX = clientX - canvasRect.left - this.leftMargin;
         const eighthNote = Math.floor(relativeX / this.eighthNoteWidth);
         return Math.max(0, Math.min(eighthNote, this.maxMeasures * this.eighthNotesPerMeasure - 1));
     }
@@ -254,6 +446,25 @@ class Staff {
                 : cardData.card.getLength();
             return eighthNotePosition >= start && eighthNotePosition < start + length;
         });
+    }
+
+    // キャンバス上の位置からカードを検索
+    findCardAtCanvasPosition(clientX, clientY) {
+        const canvasRect = this.canvas.getBoundingClientRect();
+        const x = clientX - canvasRect.left;
+        const y = clientY - canvasRect.top;
+        
+        // ピアノロールの範囲内かチェック
+        if (x < this.leftMargin || x > this.canvas.width - 50 ||
+            y < this.topMargin || y > this.topMargin + this.notes.length * this.blockHeight) {
+            return null;
+        }
+        
+        // 8分音符の位置を取得
+        const eighthNote = this.getEighthNoteFromPosition(clientX, clientY);
+        
+        // その位置にあるカードを検索
+        return this.findCardAtPosition(eighthNote);
     }
 
     // カードを削除

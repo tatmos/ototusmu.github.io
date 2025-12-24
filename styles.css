@@ -158,21 +158,17 @@ body {
 }
 
 .card {
-    background: white;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
+    position: relative;
     cursor: grab;
     transition: all 0.3s;
-    min-width: 80px;
-    text-align: center;
     user-select: none;
+    min-width: 100px;
+    padding: 8px;
 }
 
 .card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    border-color: #667eea;
+    filter: brightness(1.1);
 }
 
 .card:active {
@@ -185,29 +181,109 @@ body {
 }
 
 .card.locked {
-    background: #e8f5e9;
-    border-color: #4caf50;
+    opacity: 0.8;
     cursor: default;
 }
 
 .card.waiting {
-    background: #fff3e0;
-    border-color: #ff9800;
+    opacity: 0.7;
 }
 
-.rhythm-card {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-    color: white;
+/* 贈り物パッケージのスタイル */
+.gift-package {
+    background: linear-gradient(135deg, #fff 0%, #f5f5f5 100%);
+    border: 3px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
 }
 
-.pitch-card {
+.rhythm-card.gift-package {
+    background: linear-gradient(135deg, #ffe0e0 0%, #ffcccc 100%);
+    border-color: #ff9999;
+}
+
+.pitch-card.gift-package {
+    background: linear-gradient(135deg, #e0f5ff 0%, #cceeff 100%);
+    border-color: #99ccff;
+}
+
+/* リボン（上） */
+.gift-ribbon-top {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 8px;
+    background: linear-gradient(90deg, #ff6b6b 0%, #ff8e6b 50%, #ff6b6b 100%);
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 2;
+}
+
+.pitch-card .gift-ribbon-top {
+    background: linear-gradient(90deg, #4ecdc4 0%, #6bd4cc 50%, #4ecdc4 100%);
+}
+
+/* リボン（下） */
+.gift-ribbon-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 8px;
+    background: linear-gradient(90deg, #ff6b6b 0%, #ff8e6b 50%, #ff6b6b 100%);
+    border-radius: 4px 4px 0 0;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 2;
+}
+
+.pitch-card .gift-ribbon-bottom {
+    background: linear-gradient(90deg, #4ecdc4 0%, #6bd4cc 50%, #4ecdc4 100%);
+}
+
+/* 包装紙の本体 */
+.gift-wrapper {
+    padding: 20px 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 50px;
+}
+
+/* ブロックコンテナ */
+.gift-blocks {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* リズムブロック */
+.rhythm-block {
+    background: linear-gradient(135deg, #888 0%, #666 100%);
+    border-radius: 4px;
+    border: 1px solid #555;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 音程ブロック */
+.pitch-block {
     background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
-    color: white;
-}
-
-.card-content {
+    border-radius: 4px;
+    border: 1px solid #2d8a7a;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
     font-weight: bold;
-    font-size: 16px;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 #status-bar {
