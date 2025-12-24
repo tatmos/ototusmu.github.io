@@ -384,13 +384,56 @@ class Staff {
         // 既に配置されている場合は削除
         this.cards = this.cards.filter(c => {
             if (c.combined) {
-                return c.rhythmCard.id !== card.id && c.pitchCard.id !== card.id;
+                // 組み合わせカードの場合、リズムカードまたは音程カードのいずれかが一致する場合は削除
+                const rhythmMatches = c.rhythmCard && c.rhythmCard.id === card.id;
+                const pitchMatches = c.pitchCard && c.pitchCard.id === card.id;
+                return !rhythmMatches && !pitchMatches;
             }
-            return c.card.id !== card.id;
+            // 単独カードの場合、カードが存在し、IDが一致しない場合は残す
+            return !c.card || (c.card.id !== card.id);
         });
 
         // 同じ位置に既存のカードがあるかチェック（組み合わせ可能か）
-        const existingCard = this.findCardAtPosition(eighthNotePosition);
+        let existingCard = this.findCardAtPosition(eighthNotePosition);
+        
+        // 既存のカードがない場合、最も近いカードを検索
+        if (!existingCard) {
+            const nearestCard = this.findNearestCard(eighthNotePosition);
+            
+            // 最も近いカードが見つかった場合、その位置に合わせる
+            if (nearestCard) {
+                const nearestStart = nearestCard.position.eighthNote;
+                const nearestLength = nearestCard.combined 
+                    ? (nearestCard.rhythmCard ? nearestCard.rhythmCard.getLength() : 0)
+                    : nearestCard.card.getLength();
+                const nearestEnd = nearestStart + nearestLength;
+                
+                // ドロップ位置がカードの範囲内か、終端に近い場合は終端位置に配置
+                if (eighthNotePosition >= nearestStart && eighthNotePosition < nearestEnd) {
+                    // カードの範囲内の場合は、その位置に配置
+                    eighthNotePosition = eighthNotePosition;
+                } else if (Math.abs(eighthNotePosition - nearestEnd) <= 4) {
+                    // 終端に近い場合は終端位置に配置
+                    eighthNotePosition = nearestEnd;
+                } else if (Math.abs(eighthNotePosition - nearestStart) <= 4) {
+                    // 開始位置に近い場合は開始位置に配置
+                    eighthNotePosition = nearestStart;
+                } else {
+                    // それ以外の場合は、最も近い位置に配置
+                    eighthNotePosition = eighthNotePosition < nearestStart ? nearestStart : nearestEnd;
+                }
+                
+                // 位置を調整した後、その位置に既存のカードがあるか再チェック
+                existingCard = this.findCardAtPosition(eighthNotePosition);
+                
+                // 既存のカードが見つからない場合、最も近いカードを使用（合成するため）
+                if (!existingCard && nearestCard) {
+                    existingCard = nearestCard;
+                    // 既存のカードの位置を保持
+                    eighthNotePosition = nearestCard.position.eighthNote;
+                }
+            }
+        }
         
         if (existingCard) {
             if (existingCard.combined) {
@@ -434,15 +477,27 @@ class Staff {
                     const rhythmCard = existingCard.card.type === 'rhythm' ? existingCard.card : card;
                     const pitchCard = existingCard.card.type === 'pitch' ? existingCard.card : card;
                     
+                    // 既存のカードの位置を保持
+                    const existingPosition = existingCard.position.eighthNote;
+                    
                     // 既存のカードを削除
-                    this.cards = this.cards.filter(c => c.card.id !== existingCard.card.id);
+                    this.cards = this.cards.filter(c => {
+                        if (c.combined) {
+                            // 組み合わせカードの場合は、リズムカードまたは音程カードのいずれかが一致する場合は削除
+                            const rhythmMatches = c.rhythmCard && c.rhythmCard.id === existingCard.card.id;
+                            const pitchMatches = c.pitchCard && c.pitchCard.id === existingCard.card.id;
+                            return !rhythmMatches && !pitchMatches;
+                        }
+                        // 単独カードの場合、カードが存在し、IDが一致しない場合は残す
+                        return !c.card || (c.card.id !== existingCard.card.id);
+                    });
                     
                     const combinedData = {
                         combined: true,
                         rhythmCard: rhythmCard,
                         pitchCard: pitchCard,
                         position: {
-                            eighthNote: eighthNotePosition
+                            eighthNote: existingPosition
                         }
                     };
                     
@@ -480,6 +535,71 @@ class Staff {
         });
     }
 
+    // 指定位置に最も近いカードを検索（範囲内または最も近い）
+    findNearestCard(eighthNotePosition) {
+        let nearestCard = null;
+        let minDistance = Infinity;
+        
+        this.cards.forEach(cardData => {
+            if (!cardData.position) return;
+            
+            const start = cardData.position.eighthNote;
+            const length = cardData.combined 
+                ? (cardData.rhythmCard ? cardData.rhythmCard.getLength() : 0)
+                : cardData.card.getLength();
+            const end = start + length;
+            
+            let distance;
+            if (eighthNotePosition >= start && eighthNotePosition < end) {
+                // カードの範囲内にある場合、距離は0
+                distance = 0;
+            } else if (eighthNotePosition < start) {
+                // カードの前にある場合、開始位置までの距離
+                distance = start - eighthNotePosition;
+            } else {
+                // カードの後にある場合、終端位置までの距離
+                distance = eighthNotePosition - end;
+            }
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestCard = cardData;
+            }
+        });
+        
+        // 距離が一定範囲内（8分音符4つ分以内）の場合のみ返す
+        if (minDistance <= 4) {
+            return nearestCard;
+        }
+        
+        return null;
+    }
+
+    // 指定位置の近くにある合成カードの終端位置を検索
+    findCardAtEndPosition(eighthNotePosition) {
+        // 指定位置の近く（前後数ブロック以内）にある合成カードを検索
+        const searchRange = 4; // 8分音符4つ分の範囲
+        return this.cards.find(cardData => {
+            if (!cardData.position || !cardData.combined) return false;
+            const start = cardData.position.eighthNote;
+            const length = cardData.rhythmCard ? cardData.rhythmCard.getLength() : 0;
+            const end = start + length;
+            
+            // 指定位置が終端位置の近くにあるかチェック
+            return Math.abs(eighthNotePosition - end) <= searchRange;
+        });
+    }
+
+    // カードの終端位置を取得
+    getCardEndPosition(cardData) {
+        if (!cardData.position) return 0;
+        const start = cardData.position.eighthNote;
+        const length = cardData.combined 
+            ? (cardData.rhythmCard ? cardData.rhythmCard.getLength() : 0)
+            : cardData.card.getLength();
+        return start + length;
+    }
+
     // キャンバス上の位置からカードを検索
     findCardAtCanvasPosition(clientX, clientY) {
         const canvasRect = this.canvas.getBoundingClientRect();
@@ -501,7 +621,16 @@ class Staff {
 
     // カードを削除
     removeCard(cardId) {
-        this.cards = this.cards.filter(c => c.card.id !== cardId);
+        this.cards = this.cards.filter(c => {
+            if (c.combined) {
+                // 組み合わせカードの場合、リズムカードまたは音程カードのいずれかが一致する場合は削除
+                const rhythmMatches = c.rhythmCard && c.rhythmCard.id === cardId;
+                const pitchMatches = c.pitchCard && c.pitchCard.id === cardId;
+                return !rhythmMatches && !pitchMatches;
+            }
+            // 単独カードの場合、カードが存在し、IDが一致しない場合は残す
+            return !c.card || (c.card.id !== cardId);
+        });
         this.draw();
     }
 
