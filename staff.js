@@ -392,34 +392,66 @@ class Staff {
         // 同じ位置に既存のカードがあるかチェック（組み合わせ可能か）
         const existingCard = this.findCardAtPosition(eighthNotePosition);
         
-        if (existingCard && existingCard.card && !existingCard.combined) {
-            // 既存のカードと組み合わせ可能かチェック
-            const canCombine = 
-                (existingCard.card.type === 'rhythm' && card.type === 'pitch') ||
-                (existingCard.card.type === 'pitch' && card.type === 'rhythm');
-            
-            if (canCombine) {
-                // カードを組み合わせる
-                const rhythmCard = existingCard.card.type === 'rhythm' ? existingCard.card : card;
-                const pitchCard = existingCard.card.type === 'pitch' ? existingCard.card : card;
+        if (existingCard) {
+            if (existingCard.combined) {
+                // 既に組み合わせられたカードの場合
+                // 新しいカードが既存の組み合わせに追加できるかチェック
+                if (card.type === 'rhythm' && !existingCard.rhythmCard) {
+                    // リズムカードが不足している場合、追加
+                    existingCard.rhythmCard = card;
+                    card.position = existingCard.position;
+                    this.draw();
+                    return;
+                } else if (card.type === 'pitch' && !existingCard.pitchCard) {
+                    // 音程カードが不足している場合、追加
+                    existingCard.pitchCard = card;
+                    card.position = existingCard.position;
+                    this.draw();
+                    return;
+                } else if (card.type === 'rhythm' && existingCard.rhythmCard) {
+                    // 既にリズムカードがある場合、置き換え
+                    existingCard.rhythmCard.reset();
+                    existingCard.rhythmCard = card;
+                    card.position = existingCard.position;
+                    this.draw();
+                    return;
+                } else if (card.type === 'pitch' && existingCard.pitchCard) {
+                    // 既に音程カードがある場合、置き換え
+                    existingCard.pitchCard.reset();
+                    existingCard.pitchCard = card;
+                    card.position = existingCard.position;
+                    this.draw();
+                    return;
+                }
+            } else if (existingCard.card && !existingCard.combined) {
+                // 単独のカードと組み合わせ可能かチェック
+                const canCombine = 
+                    (existingCard.card.type === 'rhythm' && card.type === 'pitch') ||
+                    (existingCard.card.type === 'pitch' && card.type === 'rhythm');
                 
-                // 既存のカードを削除
-                this.cards = this.cards.filter(c => c.card.id !== existingCard.card.id);
-                
-                const combinedData = {
-                    combined: true,
-                    rhythmCard: rhythmCard,
-                    pitchCard: pitchCard,
-                    position: {
-                        eighthNote: eighthNotePosition
-                    }
-                };
-                
-                this.cards.push(combinedData);
-                rhythmCard.position = combinedData.position;
-                pitchCard.position = combinedData.position;
-                this.draw();
-                return;
+                if (canCombine) {
+                    // カードを組み合わせる
+                    const rhythmCard = existingCard.card.type === 'rhythm' ? existingCard.card : card;
+                    const pitchCard = existingCard.card.type === 'pitch' ? existingCard.card : card;
+                    
+                    // 既存のカードを削除
+                    this.cards = this.cards.filter(c => c.card.id !== existingCard.card.id);
+                    
+                    const combinedData = {
+                        combined: true,
+                        rhythmCard: rhythmCard,
+                        pitchCard: pitchCard,
+                        position: {
+                            eighthNote: eighthNotePosition
+                        }
+                    };
+                    
+                    this.cards.push(combinedData);
+                    rhythmCard.position = combinedData.position;
+                    pitchCard.position = combinedData.position;
+                    this.draw();
+                    return;
+                }
             }
         }
 

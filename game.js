@@ -112,8 +112,14 @@ class Game {
                         if (card && !card.isLocked) {
                             this.draggedCard = card;
                             this.draggedCardData = cardData;
-                            this.dragOffset.x = clientX - canvasRect.left;
-                            this.dragOffset.y = clientY - canvasRect.top;
+                            
+                            // クリック位置からカードの開始位置までの相対オフセットを計算
+                            const cardStartX = this.staff.leftMargin + cardData.position.eighthNote * this.staff.eighthNoteWidth;
+                            const relativeX = (clientX - canvasRect.left) - cardStartX;
+                            const relativeY = (clientY - canvasRect.top) - this.staff.topMargin;
+                            
+                            this.dragOffset.x = relativeX;
+                            this.dragOffset.y = relativeY;
                             this.isDraggingFromCanvas = true;
                             e.preventDefault();
                             return;
@@ -154,9 +160,12 @@ class Game {
                 const x = clientX - canvasRect.left;
                 const y = clientY - canvasRect.top;
                 
-                // 8分音符単位でスナップ
-                const eighthNote = this.staff.getEighthNoteFromPosition(clientX, clientY);
-                const snappedX = this.staff.leftMargin + eighthNote * this.staff.eighthNoteWidth;
+                // 相対オフセットを考慮して、カードの開始位置を計算
+                const cardStartX = x - this.dragOffset.x;
+                const cardStartEighth = Math.round((cardStartX - this.staff.leftMargin) / this.staff.eighthNoteWidth);
+                
+                // 8分音符単位でスナップ（負の値にならないように）
+                const eighthNote = Math.max(0, cardStartEighth);
                 
                 // 一時的な位置を保存（描画用）
                 if (this.draggedCardData) {
@@ -191,14 +200,17 @@ class Game {
             const isInCanvas = x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height;
             
             if (isInCanvas) {
-                // 8分音符単位でスナップ
-                const eighthNote = this.staff.getEighthNoteFromPosition(clientX, clientY);
-                
                 if (this.isDraggingFromCanvas && this.draggedCardData) {
+                    // 相対オフセットを考慮して、カードの開始位置を計算
+                    const cardStartX = x - this.dragOffset.x;
+                    const cardStartEighth = Math.round((cardStartX - this.staff.leftMargin) / this.staff.eighthNoteWidth);
+                    const eighthNote = Math.max(0, cardStartEighth);
+                    
                     // 配置されたカードを移動
                     this.moveCardOnStaff(this.draggedCardData, eighthNote);
                 } else {
-                    // 新しいカードを配置
+                    // 新しいカードを配置（クリック位置から直接計算）
+                    const eighthNote = this.staff.getEighthNoteFromPosition(clientX, clientY);
                     this.placeCardOnStaff(this.draggedCard, eighthNote);
                 }
             } else if (this.isDraggingFromCanvas && this.draggedCardData) {
