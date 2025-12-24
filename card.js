@@ -40,13 +40,22 @@ class Card {
                 blocksContainer.appendChild(block);
             });
         } else {
-            // 音程カード：ブロックを表示
+            // 音程カード：ブロックを表示（音程で色分け）
             this.data.forEach((note, index) => {
                 const block = document.createElement('div');
                 block.className = 'pitch-block';
-                block.textContent = note;
+                block.textContent = note.replace(/\d+/, ''); // 音名のみ表示
                 block.style.width = '20px';
                 block.style.height = '20px';
+                // 音程に応じた色を設定
+                const noteColor = this.getNoteColor(note);
+                block.style.backgroundColor = noteColor;
+                block.style.color = '#fff';
+                block.style.fontWeight = 'bold';
+                block.style.fontSize = '10px';
+                block.style.display = 'flex';
+                block.style.alignItems = 'center';
+                block.style.justifyContent = 'center';
                 blocksContainer.appendChild(block);
             });
         }
@@ -106,6 +115,27 @@ class Card {
         if (this.element) {
             this.element.classList.remove('locked', 'waiting');
         }
+    }
+
+    // 音程から色を取得
+    getNoteColor(note) {
+        const baseColors = {
+            'C': '#FF6B6B',   // 赤
+            'C#': '#FF8E6B',  // オレンジ
+            'D': '#FFB84D',   // 黄オレンジ
+            'D#': '#FFD93D',  // 黄色
+            'E': '#C8E6C9',   // ライトグリーン
+            'F': '#81C784',   // グリーン
+            'F#': '#4FC3F7',  // ライトブルー
+            'G': '#42A5F5',   // ブルー
+            'G#': '#7986CB',  // インディゴ
+            'A': '#BA68C8',   // パープル
+            'A#': '#E91E63',  // ピンク
+            'B': '#F06292'    // ローズ
+        };
+        
+        const noteName = note.replace(/\d+/, '');
+        return baseColors[noteName] || '#CCCCCC';
     }
 }
 

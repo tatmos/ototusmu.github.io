@@ -289,9 +289,36 @@ body {
 #status-bar {
     display: flex;
     gap: 10px;
+    align-items: center;
     margin-top: 20px;
     padding-top: 15px;
     border-top: 2px solid #eee;
+}
+
+#bpm-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#bpm-control label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+
+#bpm-input {
+    width: 60px;
+    padding: 8px;
+    font-size: 14px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    text-align: center;
+}
+
+#bpm-input:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 #status-bar button {

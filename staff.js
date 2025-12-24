@@ -1,12 +1,13 @@
 // 五線紙クラス（ピアノロール形式）
 class Staff {
-    constructor(canvas, timeSignature = { numerator: 4, denominator: 4 }) {
+    constructor(canvas, timeSignature = { numerator: 4, denominator: 4 }, game = null) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.timeSignature = timeSignature;
         this.beatsPerMeasure = timeSignature.numerator;
         this.beatValue = timeSignature.denominator;
         this.eighthNotesPerMeasure = this.beatsPerMeasure * (8 / this.beatValue); // 8分音符の数
+        this.game = game; // Gameインスタンスへの参照
         
         this.cards = []; // 配置されたカード
         this.maxMeasures = 16;
@@ -94,7 +95,7 @@ class Staff {
     }
 
     // ピアノロールを描画
-    draw() {
+    draw(playPosition = null) {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -113,6 +114,32 @@ class Staff {
 
         // 配置されたカードを描画
         this.drawCards();
+
+        // 8分音符の区切り線を描画（カードの上に描画して見やすく）
+        this.drawEighthNoteLines();
+
+        // 再生ポジションをハイライト
+        if (playPosition !== null) {
+            this.drawPlayPosition(playPosition);
+        }
+    }
+
+    // 再生ポジションをハイライト
+    drawPlayPosition(eighthNotePosition) {
+        const ctx = this.ctx;
+        const x = this.leftMargin + eighthNotePosition * this.eighthNoteWidth;
+        const y = this.topMargin;
+        const height = this.notes.length * this.blockHeight;
+        
+        // 再生ポジションの線を描画
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + height);
+        ctx.stroke();
+        ctx.setLineDash([]);
     }
 
     // 拍子記号を描画
@@ -168,6 +195,32 @@ class Staff {
             ctx.lineTo(x, this.topMargin + this.notes.length * this.blockHeight);
             ctx.stroke();
         }
+    }
+
+    // 8分音符の区切り線を描画
+    drawEighthNoteLines() {
+        const ctx = this.ctx;
+        ctx.strokeStyle = '#666666'; // 濃いグレーで見やすく
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]); // 点線にして見やすく
+
+        const totalEighthNotes = this.maxMeasures * this.eighthNotesPerMeasure;
+        
+        for (let eighthNote = 0; eighthNote <= totalEighthNotes; eighthNote++) {
+            const x = this.leftMargin + eighthNote * this.eighthNoteWidth;
+            
+            // 小節線の位置はスキップ（既に描画されているため）
+            if (eighthNote % this.eighthNotesPerMeasure === 0) {
+                continue;
+            }
+            
+            ctx.beginPath();
+            ctx.moveTo(x, this.topMargin);
+            ctx.lineTo(x, this.topMargin + this.notes.length * this.blockHeight);
+            ctx.stroke();
+        }
+        
+        ctx.setLineDash([]); // 点線をリセット
     }
 
     // 音程名からY座標を取得
@@ -438,29 +491,74 @@ class Staff {
         if (existingCard) {
             if (existingCard.combined) {
                 // 既に組み合わせられたカードの場合
+                // 既にリズムカードと音程カードの両方が存在する場合は、追加合成を拒否
+                if (existingCard.rhythmCard && existingCard.pitchCard) {
+                    // 合成済みカードには追加できない
+                    console.log('既に合成済みのカードには追加できません');
+                    return;
+                }
+                
                 // 新しいカードが既存の組み合わせに追加できるかチェック
                 if (card.type === 'rhythm' && !existingCard.rhythmCard) {
                     // リズムカードが不足している場合、追加
+                    // カード要素をカードコンテナから削除
+                    if (card.element && card.element.parentNode) {
+                        card.element.parentNode.removeChild(card.element);
+                        card.element = null;
+                    }
                     existingCard.rhythmCard = card;
                     card.position = existingCard.position;
+                    // 合成完了（両方のカードが揃った）のでスコアを加算
+                    if (existingCard.rhythmCard && existingCard.pitchCard && this.game) {
+                        this.game.addScoreForCombination();
+                    }
                     this.draw();
                     return;
                 } else if (card.type === 'pitch' && !existingCard.pitchCard) {
                     // 音程カードが不足している場合、追加
+                    // カード要素をカードコンテナから削除
+                    if (card.element && card.element.parentNode) {
+                        card.element.parentNode.removeChild(card.element);
+                        card.element = null;
+                    }
                     existingCard.pitchCard = card;
                     card.position = existingCard.position;
+                    // 合成完了（両方のカードが揃った）のでスコアを加算
+                    if (existingCard.rhythmCard && existingCard.pitchCard && this.game) {
+                        this.game.addScoreForCombination();
+                    }
                     this.draw();
                     return;
                 } else if (card.type === 'rhythm' && existingCard.rhythmCard) {
                     // 既にリズムカードがある場合、置き換え
+                    // 古いカード要素を削除
+                    if (existingCard.rhythmCard.element && existingCard.rhythmCard.element.parentNode) {
+                        existingCard.rhythmCard.element.parentNode.removeChild(existingCard.rhythmCard.element);
+                        existingCard.rhythmCard.element = null;
+                    }
                     existingCard.rhythmCard.reset();
+                    // 新しいカード要素を削除
+                    if (card.element && card.element.parentNode) {
+                        card.element.parentNode.removeChild(card.element);
+                        card.element = null;
+                    }
                     existingCard.rhythmCard = card;
                     card.position = existingCard.position;
                     this.draw();
                     return;
                 } else if (card.type === 'pitch' && existingCard.pitchCard) {
                     // 既に音程カードがある場合、置き換え
+                    // 古いカード要素を削除
+                    if (existingCard.pitchCard.element && existingCard.pitchCard.element.parentNode) {
+                        existingCard.pitchCard.element.parentNode.removeChild(existingCard.pitchCard.element);
+                        existingCard.pitchCard.element = null;
+                    }
                     existingCard.pitchCard.reset();
+                    // 新しいカード要素を削除
+                    if (card.element && card.element.parentNode) {
+                        card.element.parentNode.removeChild(card.element);
+                        card.element = null;
+                    }
                     existingCard.pitchCard = card;
                     card.position = existingCard.position;
                     this.draw();
@@ -492,6 +590,16 @@ class Staff {
                         return !c.card || (c.card.id !== existingCard.card.id);
                     });
                     
+                    // カード要素をカードコンテナから削除
+                    if (rhythmCard.element && rhythmCard.element.parentNode) {
+                        rhythmCard.element.parentNode.removeChild(rhythmCard.element);
+                        rhythmCard.element = null;
+                    }
+                    if (pitchCard.element && pitchCard.element.parentNode) {
+                        pitchCard.element.parentNode.removeChild(pitchCard.element);
+                        pitchCard.element = null;
+                    }
+                    
                     const combinedData = {
                         combined: true,
                         rhythmCard: rhythmCard,
@@ -504,6 +612,10 @@ class Staff {
                     this.cards.push(combinedData);
                     rhythmCard.position = combinedData.position;
                     pitchCard.position = combinedData.position;
+                    // 合成完了なのでスコアを加算
+                    if (this.game) {
+                        this.game.addScoreForCombination();
+                    }
                     this.draw();
                     return;
                 }

@@ -28,7 +28,7 @@
                     <span>目標: <span id="target-score">1000</span></span>
                 </div>
                 <div id="measure-info">
-                    <span>小節: <span id="current-measures">0</span> / 16</span>
+                    <span>小節: <span id="current-measures">0</span> / <span id="target-measures">1</span></span>
                 </div>
             </div>
 
@@ -50,9 +50,15 @@
             </div>
 
             <div id="status-bar">
+                <div id="bpm-control">
+                    <label for="bpm-input">BPM:</label>
+                    <input type="number" id="bpm-input" min="60" max="500" value="300" step="1">
+                </div>
                 <button id="clear-btn">クリア</button>
                 <button id="play-btn">再生</button>
                 <button id="stop-btn">停止</button>
+                <button id="export-wav-btn">WAV出力</button>
+                <button id="submit-btn">提出</button>
             </div>
         </div>
     </div>
