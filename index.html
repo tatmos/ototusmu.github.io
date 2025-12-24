@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音を紡ぐゲーム - MouHitotsuNote</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="story-overlay" class="hidden">
+            <div class="story-content">
+                <h2 id="story-title"></h2>
+                <p id="story-text"></p>
+                <button id="story-next-btn">次へ</button>
+            </div>
+        </div>
+
+        <div id="game-ui">
+            <div id="header">
+                <h1>音を紡ぐゲーム</h1>
+                <div id="chapter-info">
+                    <span>第 <span id="chapter-number">1</span> 章</span>
+                    <span id="chapter-title">はじめてのメロディー</span>
+                </div>
+                <div id="score-info">
+                    <span>スコア: <span id="score">0</span></span>
+                    <span>目標: <span id="target-score">1000</span></span>
+                </div>
+                <div id="measure-info">
+                    <span>小節: <span id="current-measures">0</span> / 16</span>
+                </div>
+            </div>
+
+            <div id="game-area">
+                <div id="staff-container">
+                    <canvas id="staff-canvas"></canvas>
+                </div>
+                
+                <div id="cards-area">
+                    <div id="rhythm-cards" class="cards-section">
+                        <h3>リズム猫のカード</h3>
+                        <div id="rhythm-cards-container" class="cards-container"></div>
+                    </div>
+                    <div id="pitch-cards" class="cards-section">
+                        <h3>音程猫のカード</h3>
+                        <div id="pitch-cards-container" class="cards-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="status-bar">
+                <button id="clear-btn">クリア</button>
+                <button id="play-btn">再生</button>
+                <button id="stop-btn">停止</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="audioManager.js"></script>
+    <script src="card.js"></script>
+    <script src="staff.js"></script>
+    <script src="story.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
+
